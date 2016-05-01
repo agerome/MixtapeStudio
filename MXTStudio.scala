@@ -9,10 +9,15 @@
  *
  *
  */
-package mxtstudio {
+package mxtstudio 
 
     import scala.collection.mutable
-    import scala.reflect.ClassTag
+    import javax.sound.sampled.AudioFileFormat
+    import javax.sound.sampled.AudioFormat
+    import javax.sound.sampled.AudioSystem
+    import javax.sound.sampled.DataLine
+    import javax.sound.sampled.TargetDataLine
+    import java.io.File
 
     class MXTStudio{
       abstract sealed class MXTLine
@@ -25,6 +30,34 @@ package mxtstudio {
       case class Let(num:Int, fn:() => Unit) extends MXTLine
       case class If(num:Int, fn:() => Boolean, thenJmp:Int) extends MXTLine
       case class End(num: Int) extends MXTLine
+      
+      // path of the wav file
+      val wavFile = new File("mixtape.wav")
+ 
+      // format of audio file
+      val fileType = AudioFileFormat.Type.WAVE
+      
+      /**
+       * Defines an audio format
+       */
+
+
+        def getAudioFormat() {
+          val sampleRate : Float = 16000;
+          val sampleSizeInBits : Int= 8;
+          val channels : Int= 2;
+          val signed : Boolean= true;
+          val bigEndian : Boolean= true;
+          new AudioFormat(sampleRate, sampleSizeInBits,
+                                               channels, signed, bigEndian);
+        }
+   
+      val format = getAudioFormat()
+      val info = new DataLine.Info(TargetDataLine.class, format)
+      
+      // the line from which audio data is captured
+      val dataline = AudioSystem.getLine(info)
+      
       /**
      	* Bindings holds the two types of values provided, atoms and numerics.
      	* It takes a type parameter on initialization corresponding to the
@@ -75,36 +108,36 @@ package mxtstudio {
         def :=(v:() => Int):() => Unit = () => binds.set(sym, v())
       }
 
-//      /**
-//     	* The MathFunction class is used by the `symbol2MathFunction` and
-//     	* `fnOfInt2MathFunction` implicits to stand in for Scala symbols and
-//     	* functions of type () => Int, the latter being constructed at run-time.
-//     	*/
-//      case class MathFunction(lhs:() => Int) {
-//        def *(rhs:Int):() => Int = () => lhs() * rhs
-//        def *(rhs:() => Int):() => Int = () => lhs() * rhs()
-//        def /(rhs:Int):() => Int = () => lhs() / rhs
-//        def /(rhs:() => Int):() => Int = () => lhs() / rhs()
-//        def +(rhs:Symbol):() => Int = () => lhs() + binds.num(rhs)
-//        def +(rhs:() => Int):() => Int = () => lhs() + rhs()
-//        def -(rhs:Symbol):() => Int = () => lhs() - binds.num(rhs)
-//        def -(rhs:() => Int):() => Int = () => lhs() - rhs()
-//      }
-//
-//      /**
-//       * The BinaryRelation class is used by the `symbol2BinaryRelation` and
-//       * `fnOfInt2BinaryRelation` implicits to stand in for Scala symbols and
-//       * functions of type () => Int, the latter being constructed at run-time.
-//       */
-//      case class BinaryRelation(lhs:() => Int) {
-//        def ===(rhs:Int):() => Boolean = () => lhs() == rhs
-//        def <=(rhs:Int):() => Boolean = () => lhs() <= rhs
-//        def <=(rhs:Symbol):() => Boolean = () => lhs() <= binds.num(rhs)
-//        def >=(rhs:Int):() => Boolean = () => lhs() >= rhs
-//        def >=(rhs:Symbol):() => Boolean = () => lhs() >= binds.num(rhs)
-//        def <(rhs:Int):() => Boolean = () => lhs() < rhs
-//        def >(rhs:Int):() => Boolean = () => lhs() > rhs
-//      }
+      /**
+     	* The MathFunction class is used by the `symbol2MathFunction` and
+     	* `fnOfInt2MathFunction` implicits to stand in for Scala symbols and
+     	* functions of type () => Int, the latter being constructed at run-time.
+     	*/
+      case class MathFunction(lhs:() => Int) {
+        def *(rhs:Int):() => Int = () => lhs() * rhs
+        def *(rhs:() => Int):() => Int = () => lhs() * rhs()
+        def /(rhs:Int):() => Int = () => lhs() / rhs
+        def /(rhs:() => Int):() => Int = () => lhs() / rhs()
+        def +(rhs:Symbol):() => Int = () => lhs() + binds.num(rhs)
+        def +(rhs:() => Int):() => Int = () => lhs() + rhs()
+        def -(rhs:Symbol):() => Int = () => lhs() - binds.num(rhs)
+        def -(rhs:() => Int):() => Int = () => lhs() - rhs()
+      }
+
+      /**
+       * The BinaryRelation class is used by the `symbol2BinaryRelation` and
+       * `fnOfInt2BinaryRelation` implicits to stand in for Scala symbols and
+       * functions of type () => Int, the latter being constructed at run-time.
+       */
+      case class BinaryRelation(lhs:() => Int) {
+        def ===(rhs:Int):() => Boolean = () => lhs() == rhs
+        def <=(rhs:Int):() => Boolean = () => lhs() <= rhs
+        def <=(rhs:Symbol):() => Boolean = () => lhs() <= binds.num(rhs)
+        def >=(rhs:Int):() => Boolean = () => lhs() >= rhs
+        def >=(rhs:Symbol):() => Boolean = () => lhs() >= binds.num(rhs)
+        def <(rhs:Int):() => Boolean = () => lhs() < rhs
+        def >(rhs:Int):() => Boolean = () => lhs() > rhs
+      }
   
       /**
        * Branch provides the THEN part of an IF form which creates the If class
@@ -123,45 +156,45 @@ package mxtstudio {
   
       def stringify(x:Any*):String = x.mkString("")
   
-//      /**
-//       * Appendr allows for the stringing together of expressions using the
-//       * `%` function.
-//       */
-//      case class Appendr(lhs:Any) {
-//        /**
-//         * <code>appendage</code> refers to the LHS value to be appended, <b>at
-//         * runtime</b>.  This is done, by setting it to a function which performs
-//         * lookups (for symbols) and toString conversion.
-//         *
-//         */
-//        var appendage = lhs match {
-//          case sym:Symbol => () => binds.any(sym).toString
-//          case fn:Function0[Any] => fn
-//          case _ => () => lhs.toString
-//        }
-//  
-//        def %(rhs:Any):() => String = {
-//          /**
-//           * Check the type of the RHS.  For symbols, do a lookup, then
-//           * concatenate it to the result of the appendage function.
-//           */
-//          () => rhs match {
-//            case sym: Symbol => stringify(appendage(), binds.any(sym))
-//            case fn: Function0[Any] => stringify(appendage(), fn())
-//            case _ => stringify(appendage(), rhs)
-//          }
-//        }
-//      }
-//  
-//      /**
-//       * Math Functions
-//       */
-//      def SQRT(i:Int):() => Int = () => Math.sqrt(i.intValue).intValue
-//      def SQRT(s:Symbol):() => Int = () => Math.sqrt(binds.num(s)).intValue
-//      def ABS(i:Int):() => Int = () => Math.abs(i)
-//      def ABS(s:Symbol):() => Int = () => Math.abs(binds.num(s))
-//  
-//      def RUN() = gotoLine(lines.keys.toList.sorted.head)
+      /**
+       * Appendr allows for the stringing together of expressions using the
+       * `%` function.
+       */
+      case class Appendr(lhs:Any) {
+        /**
+         * <code>appendage</code> refers to the LHS value to be appended, <b>at
+         * runtime</b>.  This is done, by setting it to a function which performs
+         * lookups (for symbols) and toString conversion.
+         *
+         */
+        var appendage = lhs match {
+          case sym:Symbol => () => binds.any(sym).toString
+          case fn:Function0[Any] => fn
+          case _ => () => lhs.toString
+        }
+  
+        def %(rhs:Any):() => String = {
+          /**
+           * Check the type of the RHS.  For symbols, do a lookup, then
+           * concatenate it to the result of the appendage function.
+           */
+          () => rhs match {
+            case sym: Symbol => stringify(appendage(), binds.any(sym))
+            case fn: Function0[Any] => stringify(appendage(), fn())
+            case _ => stringify(appendage(), rhs)
+          }
+        }
+      }
+  
+      /**
+       * Math Functions
+       */
+      def SQRT(i:Int):() => Int = () => Math.sqrt(i.intValue).intValue
+      def SQRT(s:Symbol):() => Int = () => Math.sqrt(binds.num(s)).intValue
+      def ABS(i:Int):() => Int = () => Math.abs(i)
+      def ABS(s:Symbol):() => Int = () => Math.abs(binds.num(s))
+  
+      def RUN() = gotoLine(lines.keys.toList.sorted.head)
   
       /**
        * LineBuilder is the jump off point for the line number syntax of
@@ -209,19 +242,19 @@ package mxtstudio {
         lines(line) match {
           case PrintNumber(_, number:BigInt) => {
             println(number)
-            gotoLine(line + 10)
+            gotoLine(line + 1)
           }
           case PrintString(_, s:String) => {
             println(s)
-            gotoLine(line + 10)
+            gotoLine(line + 1)
           }
           case PrintResult(_, fn:Function0[String]) => {
             println(fn())
-            gotoLine(line + 10)
+            gotoLine(line + 1)
           }
           case PrintVariable(_, s:Symbol) => {
             println(binds.any(s))
-            gotoLine(line + 10)
+            gotoLine(line + 1)
           }
           case Input(_, name) => {
             val entry = readLine
@@ -234,18 +267,18 @@ package mxtstudio {
               case _: Throwable => binds.set(name, entry)
             }
   
-            gotoLine(line + 10)
+            gotoLine(line + 1)
           }
           case Let(_, fn:Function0[Unit]) => {
             fn()
-            gotoLine(line + 10)
+            gotoLine(line + 1)
           }
           case If(_, fn:Function0[Boolean], thenJmp:Int) => {
             if(fn()) {
               gotoLine(thenJmp)
             }
             else {
-              gotoLine(line + 10)
+              gotoLine(line + 1)
             }
           }
           case Goto(_, to) => gotoLine(to)
@@ -255,5 +288,12 @@ package mxtstudio {
           }
         }
       }
+      implicit def int2LineBuilder(i: Int) = LineBuilder(i)
+      implicit def toAppendr(key:Any) = Appendr(key)
+      implicit def symbol2Assignment(sym:Symbol) = Assignment(sym)
+      implicit def symbol2BinaryRelation(sym:Symbol) = BinaryRelation(() => binds.num(sym))
+      implicit def fnOfInt2BinaryRelation(fn:() => Int) = BinaryRelation(fn)
+      implicit def symbol2MathFunction(sym:Symbol) = MathFunction(() => binds.num(sym))
+      implicit def fnOfInt2MathFunction(fn:() => Int) = MathFunction(fn)
     }
-}
+
