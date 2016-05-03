@@ -7,7 +7,7 @@
 - [ ] Var (String) (track naming, etc.)
 - [ ] Printing (for debug/errors when generating wav)
 - [ ] Multitracking
-- [ ] .wav generation
+- [ ] MIDI generation
 - [ ] Conditionals
 - [ ] Loops
 
