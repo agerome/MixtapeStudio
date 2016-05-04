@@ -113,7 +113,7 @@ class MXTStudio{
   }
 
   /**
-   * assign those things
+   * assignments
    */
   case class Assignment(sym: Symbol) {
     def as(v: String): Unit = {
