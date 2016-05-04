@@ -3,6 +3,14 @@ package mxtstudio
 object MXTStudioTest extends MXTStudio {
   def main(args:Array[String]) = {
     Record
+    
+    Riff('fn)
+        Display("meedlymeedlymeeee")
+        Sound('w) as (100)
+        ChangeTempo(300)
+        Return('w)
+    EndRiff
+    
     Sound('x) as (60 + 10)
     Sound('y) as (60 Mul 10)
     // Scala Comment
@@ -14,15 +22,40 @@ object MXTStudioTest extends MXTStudio {
     Loop
         Display('z, " is the value of z")
         If('z LowerThan 5)
+            Loop
+                Display('y, " is the value of y")
+                If('y LowerThan 550)
+                    Stop
+                Else
+                    Ask('in)
+                    Sound('y) as ('y Sub 'in)
+                Close
+            EndLoop
             Stop
         Else
             Ask('in)
             Sound('z) as ('z Sub 'in)
         Close
     EndLoop
+    If('y HigherThan 'x)
+        If('z LowerThan 'x)
+            Display('y, ">", 'x, ">", 'z)
+        Else
+            Display('y, ">", 'z, ">", 'x)
+        Close
+    Else
+        If('z LowerThan 'y)
+            Display('x, ">", 'y, ">", 'z)
+        Else
+            Display('x, ">", 'z, ">", 'y)
+        Close
+    Close
     Display("Bye!", 'x, 'y, 'z)
     
-    ChangeTempo(250)
+    ChangeTempo(100)
+    
+    Sound('v) as (Reprise('fn))
+    Display("v: " + 'v)
     
     Note(60, 4, 2, 120)
     Note(60, 6, 2, 120)
