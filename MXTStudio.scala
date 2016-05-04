@@ -57,6 +57,9 @@ class MXTStudio{
   // Sound generation case classes
   case class GenerateFile(num: Int) extends MXTLine
   case class GenerateNote(note: Int, start: Int, duration: Int, volume: Int) extends MXTLine
+  
+  // Set Tempo
+  case class SetTempo(newTempo: Float) extends MXTLine
 
   // follow the model of using a pointer the the line we are working with
   var current: Int = 1
@@ -90,7 +93,7 @@ class MXTStudio{
 
     try{
       //Midi requirements for playing an audio sequence
-      sequencer = MidiSystem.getSequencer()
+      //sequencer = MidiSystem.getSequencer()
       sequencer.open()
       sequencer.setSequence(sequence)
       sequencer.start()
@@ -416,6 +419,10 @@ class MXTStudio{
         gotoLine(line + 1)
       }
 
+      case SetTempo(newTempo: Float) => {
+        sequencer.setTempoInBPM(newTempo)
+        gotoLine(line + 1)
+      }
       // Catch all
       case _ => 
     }
@@ -870,6 +877,12 @@ class MXTStudio{
     }
   }
 
+  object ChangeTempo{
+    def apply(newTempo: Float) = {
+      lines(current) = SetTempo(newTempo)
+      current += 1
+    }
+  }
 
   class Bindings {
     val bindingsStack = Stack[HashMap[Symbol, Any]]()
