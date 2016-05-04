@@ -16,23 +16,19 @@ import scala.util.Random
 // import scala.math.{ min, max }
 
 import javax.sound.midi._
-import java.io.File
+import java.io.{ File, IOException }
 
 class MXTStudio{
   abstract sealed class MXTLine
-  case class PrintString(num: Int, s: String) extends MXTLine
-  case class PrintVariable(num: Int, s: Symbol) extends MXTLine
-  case class PrintNumber(num: Int, s: Int) extends MXTLine
-  case class PrintFunction(num: Int, s: Function0[Any]) extends MXTLine
-  case class PrintMany(num: Int, s: Vector[Any]) extends MXTLine
+  //These functions handle printing to console; multiple functions to avoid match errors
+  //Debug option allows for error printing; if true, then uses error printing
+  case class PrintString(num: Int, s: String, debug: Boolean) extends MXTLine
+  case class PrintVariable(num: Int, s: Symbol, debug: Boolean) extends MXTLine
+  case class PrintNumber(num: Int, s: Int, debug: Boolean) extends MXTLine
+  case class PrintFunction(num: Int, s: Function0[Any], debug: Boolean) extends MXTLine
+  case class PrintConcat(num: Int, s: Vector[Any], debug: Boolean) extends MXTLine
 
   case class ReadString(num: Int, s: Symbol) extends MXTLine
-
-  // case class ErrorPrintString(num: Int, s: String) extends MXTLine
-  // case class ErrorPrintVariable(num: Int, s: Symbol) extends MXTLine
-  // case class ErrorPrintNumber(num: Int, s: Int) extends MXTLine
-  // case class ErrorPrintFunction(num: Int, s: Function0[Any]) extends MXTLine
-  // case class ErrorPrintMany(num: Int, s: Vector[Any]) extends MXTLine
 
   case class If(num: Int, fun: Function0[Boolean]) extends MXTLine
   case class IfSymb(num: Int, sym: Symbol) extends MXTLine
@@ -53,9 +49,14 @@ class MXTStudio{
 
   case class End(num: Int) extends MXTLine
 
+  // Sound generation case classes
+  case class Gen(num: Int) extends MXTLine
+  case class GenerateNote(note: Int, start: Int, duration: Int, volume: Int) extends MXTLine
+
   // follow the model of using a pointer the the line we are working with
   var current: Int = 1
 
+  //Datastructures for recording information about lines for lookup
   var lines = new HashMap[Int, MXTLine]
   val binds = new Bindings
   val funcBegLines = new HashMap[Symbol, Int]
@@ -65,44 +66,57 @@ class MXTStudio{
   val returnStack = new Stack[Any]
 
   //Midi requirements
-  var sequence = new Sequence(Sequence.PPQ, 1)
-  var track = sequence.createTrack()
-  var sequencer = MidiSystem.getSequencer()
+  val sequence = new Sequence(Sequence.PPQ, 1)
+  val track = sequence.createTrack()
+  var sequencer : Sequencer = null
+  try{
+    sequencer = MidiSystem.getSequencer() 
+  } catch {
+    case me : MidiUnavailableException => Console.err.println(Console.RED + 
+        "Setup: No Midi device can be found! You code can still run, but no audio can be heard or generated!" + Console.RESET)
+    case e : Exception => Console.err.println(Console.RED + 
+        "Setup: An unknown error has occurred" + Console.RESET)
+  }
 
+  //End File and play back audio
   def Play() = {
     lines(current) = End(current)
     gotoLine(lines.keys.toList.sorted.head)
 
-    //Midi requirements
-    sequencer = MidiSystem.getSequencer()
-    sequencer.open()
-    sequencer.setSequence(sequence)
-    sequencer.start()
-    while(sequencer.isRunning()){
-      Thread.sleep(1000)
+    try{
+      //Midi requirements for playing an audio sequence
+      sequencer = MidiSystem.getSequencer() 
+      sequencer.open()
+      sequencer.setSequence(sequence)
+      sequencer.start()
+      while(sequencer.isRunning()){
+        Thread.sleep(1000)
+      }
+      sequencer.close()
+    } catch {
+      case me : MidiUnavailableException => Console.err.println(Console.RED + 
+        "Playback: No Midi device was found, so audio cannot heard!" + Console.RESET)
+      case e : Exception => Console.err.println(Console.RED + 
+        "Playback: An unknown error has occurred" + Console.RESET)
     }
-    sequencer.close()
-
-    //Saving
-    //val newFile = new File("f.midi")
-    //MidiSystem.write(sequence,0,newFile)
   }
 
-  //TODO: make a generate command
-  //commands for tracks/sequences/files?
+  //Saving a mixtape
+  def Generate() = {
+    lines(current) = Gen(current)
+    current += 1
+  }
 
+  //TODO: make commands for tracks/sequences/files?
+
+  //Opens a program and starting recording programmed sequences
   def Record() = {
     lines = new HashMap[Int, MXTLine]
     binds.createScope()
-
-    //Initialize midi requirements
-    // sequence = new Sequence(Sequence.PPQ, 1)
-    track = sequence.createTrack()
-    sequencer = MidiSystem.getSequencer()
   }
 
   //FIX vvv
-  def Fred() = {
+  def Else() = {
     lines(current) = StartFalse(current)
     current += 1
   }
@@ -155,68 +169,64 @@ class MXTStudio{
     }
 
     lines(line) match {
-      // print to stdout
-      case PrintString(_, s: String) => {
-        println(s)
+      // Print to console: if debug=false, then stdout, iif true, then stderr
+      case PrintString(_, s: String, debug: Boolean) => {
+        if(debug){
+          Console.err.println(Console.RED + s + Console.RESET)
+        }else{
+          println(s)
+        }
         gotoLine(line + 1)
       }
-      case PrintVariable(_, s: Symbol) => {
-        println(binds.any(s))
+      case PrintVariable(_, s: Symbol, debug: Boolean) => {
+        if(debug){
+          Console.err.println(Console.RED + binds.any(s) + Console.RESET)
+        }else{
+          println(binds.any(s))
+        }
         gotoLine(line + 1)
       }
-      case PrintNumber(_, s: Int) => {
-        println(s)
+      case PrintNumber(_, s: Int, debug: Boolean) => {
+        if(debug){
+          Console.err.println(Console.RED + s + Console.RESET)
+        }else{
+          println(s)
+        }
         gotoLine(line + 1)
       }
-      case PrintFunction(_, s: Function0[Any]) => {
-        println(s())
+      case PrintFunction(_, s: Function0[Any], debug: Boolean) => {
+        if(debug){
+          Console.err.println(Console.RED + s() + Console.RESET)
+        }else{
+          println(s())
+        }
         gotoLine(line + 1)
       }
-      case PrintMany(_, s: Vector[Any]) => {
-
-        println(s.map(e => e match {
-          case v: Symbol => binds.any(v)
-          case v: Function0[Any] => v()
-          case _ => e
-        }).mkString(" "))
-
+      case PrintConcat(_, s: Vector[Any], debug: Boolean) => {
+        if(debug){
+          Console.err.println(Console.RED + s.map(e => e match {
+            case v: Symbol => binds.any(v)
+            case v: Function0[Any] => v()
+            case _ => e
+          }).mkString(" ") + Console.RESET)
+        }else{
+          println(s.map(e => e match {
+            case v: Symbol => binds.any(v)
+            case v: Function0[Any] => v()
+            case _ => e
+          }).mkString(" "))
+        }
         gotoLine(line + 1)
       }
 
-      // // print to stderr
-      // case ErrorPrintString(_, s: String) => {
-      //   Console.err.println(Console.RED + s + Console.RESET)
-      //   gotoLine(line + 1)
-      // }
-      // case ErrorPrintVariable(_, s: Symbol) => {
-      //   Console.err.println(Console.RED + binds.any(s) + Console.RESET)
-      //   gotoLine(line + 1)
-      // }
-      // case ErrorPrintNumber(_, s: Int) => {
-      //   Console.err.println(Console.RED + s + Console.RESET)
-      //   gotoLine(line + 1)
-      // }
-      // case ErrorPrintFunction(_, s: Function0[Any]) => {
-      //   Console.err.println(Console.RED + s() + Console.RESET)
-      //   gotoLine(line + 1)
-      // }
-      // case ErrorPrintMany(_, s: Vector[Any]) => {
-
-      //   Console.err.println(Console.RED + s.map(e => e match {
-      //     case v: Symbol => binds.any(v)
-      //     case v: Function0[Any] => v()
-      //     case _ => e
-      //   }).mkString(" ") + Console.RESET)
-
-      //   gotoLine(line + 1)
-      // }
-
+      // Waits for input on stdin
       case ReadString(_, s: Symbol) => {
         val value: Any = tryInt(readLine())
         binds.set(s, value)
         gotoLine(line + 1)
       }
 
+      // Starting an if statement
       case If(_, fun: Function0[Boolean]) => {
         GeneralIf(fun())
       }
@@ -225,6 +235,7 @@ class MXTStudio{
         GeneralIf(binds.any(sym).asInstanceOf[Boolean])
       }
 
+      // Starting an else statement, as part of an if statement
       case StartFalse(_) => {
         // Only reach this if true was executed
         var lineVar = line
@@ -234,18 +245,23 @@ class MXTStudio{
         gotoLine(lineVar + 1);
       }
 
+      // Closing an If/Else
       case EndIf(_) => {
         gotoLine(line + 1);
       }
 
-      case Assign(_, fn: Function0[Unit]) =>
-        {
-          fn()
-          gotoLine(line + 1)
-        }
+
+      case Assign(_, fn: Function0[Unit]) =>{
+        fn()
+        gotoLine(line + 1)
+      }
+
+
       case LoopBeg() => {
         gotoLine(line + 1)
       }
+
+
       case Break() => {
         var lineVar = line
         var loopBegCount = 0
@@ -259,9 +275,13 @@ class MXTStudio{
         }
         gotoLine(lineVar + 1)
       }
+
+
       case LoopEnd(loopBegLine: Int) => {
         gotoLine(loopBegLine + 1)
       }
+
+
       case FnStart(name: Symbol) => {
         var lineVar = line
         while (!lines(lineVar).isInstanceOf[FnEnd]) {
@@ -269,6 +289,8 @@ class MXTStudio{
         }
         gotoLine(lineVar + 1)
       }
+
+
       case FnEnd() => {
 
         // always pop from returnStack
@@ -328,6 +350,8 @@ class MXTStudio{
 
         gotoLine(pcStack.pop())
       }
+
+
       case FnRet(value: Any) => {
 
         // check and evaluate the types
@@ -344,6 +368,8 @@ class MXTStudio{
         }
         gotoLine(lineVar)
       }
+
+
       case FnCall(funcName: Symbol) => {
         // push trash onto the return stack
         returnStack.push(None)
@@ -354,6 +380,8 @@ class MXTStudio{
           case None => -1
         })
       }
+
+
       case FnCallRet(funcName: Symbol, variable: Symbol) => {
         // push the return variable onto the return stack
         returnStack.push(variable)
@@ -364,16 +392,65 @@ class MXTStudio{
           case None => -1
         })
       }
+
+
       case End(_) =>
-      case _ =>
+
+
+      case Gen(_) => {
+        gotoLine(line + 1)
+        try{
+          //Save to a MIDI file
+          val newFile = new File("mixtape.midi")
+          MidiSystem.write(sequence, 0, newFile)
+        } catch {
+          case ioe : IOException => Console.err.println(Console.RED + 
+            "File Generation: No Midi device was found, so files cannot generated!" + Console.RESET)
+          case e : Exception => Console.err.println(Console.RED +
+            "File Generation: An unknown error has occurred" + Console.RESET)
+        }
+      }
+
+      case GenerateNote(note: Int, start: Int, duration: Int, volume: Int) => {
+        var msg = new ShortMessage()
+        msg.setMessage(ShortMessage.NOTE_ON,0,60,127)
+        var event = new MidiEvent(msg,0)
+        track.add(event)
+
+        msg = new ShortMessage()
+        msg.setMessage(ShortMessage.NOTE_OFF,0,60)
+        event = new MidiEvent(msg,0)
+        track.add(event)
+      }
+
+      // Catch all
+      case _ => 
     }
   }
 
   /*
    *  OPERATORS
    */
-  // prefix operators / functions
-  def mashkeys(i: Int, j: Int): Int = { random.nextInt(j + 1 - i) + i }
+  // Prefix
+  //Random function: gives a random note within the specified range (midi standard)
+  //Mashkeys starts generating random notes at time i for duration j (returns number of generated notes)
+  def Random(i: Int, j: Int): Int = { random.nextInt(j + 1 - i) + i }
+  def MashKeys(i: Int, j: Int): Int = { 
+    // Get number of notes to generate
+    var numNotes = random.nextInt(30) + 1
+    var x = 0
+    // Generate the notes!
+    for(x <- 0 to numNotes){
+      var note = random.nextInt(84) + 12
+      var start = random.nextInt(j + 1) + i
+      var duration = random.nextInt(j) + 1
+      var volume = random.nextInt(128)
+      GenerateNote(note, start, duration, volume)
+    }
+    // Could not think of a way to do this with out return
+    return numNotes
+  }
+
 
   // //  max and min functions
   // def BIGR_OF(i: Any, j: Any): Function0[Any] = {
@@ -441,7 +518,7 @@ class MXTStudio{
   // }
 
 
-  // infix operators
+  // Infix
   implicit def operator_any(i: Any) = new {
     def UP(j: Any): Function0[Any] = {
       () =>
@@ -721,51 +798,55 @@ class MXTStudio{
     }
   }
 
+  // Prints to console: multiple functions avoids match errors
+  // Last parameter is false to indicate no debug
   object Display {
     def apply(s: String) = {
-      lines(current) = PrintString(current, s)
+      lines(current) = PrintString(current, s, false)
       current += 1
     }
     def apply(s: Any*) = {
-      lines(current) = PrintMany(current, s.toVector)
+      lines(current) = PrintConcat(current, s.toVector, false)
       current += 1
     }
     def apply(s: Symbol) = {
-      lines(current) = PrintVariable(current, s)
+      lines(current) = PrintVariable(current, s, false)
       current += 1
     }
     def apply(s: Int) = {
-      lines(current) = PrintNumber(current, s)
+      lines(current) = PrintNumber(current, s, false)
       current += 1
     }
     def apply(s: Function0[Any]) = {
-      lines(current) = PrintFunction(current, s)
+      lines(current) = PrintFunction(current, s, false)
       current += 1
     }
   }
 
-  // object COMPLAIN {
-  //   def apply(s: String) = {
-  //     lines(current) = ErrorPrintString(current, s)
-  //     current += 1
-  //   }
-  //   def apply(s: Any*) = {
-  //     lines(current) = ErrorPrintMany(current, s.toVector)
-  //     current += 1
-  //   }
-  //   def apply(s: Symbol) = {
-  //     lines(current) = ErrorPrintVariable(current, s)
-  //     current += 1
-  //   }
-  //   def apply(s: Int) = {
-  //     lines(current) = ErrorPrintNumber(current, s)
-  //     current += 1
-  //   }
-  //   def apply(s: Function0[Any]) = {
-  //     lines(current) = ErrorPrintFunction(current, s)
-  //     current += 1
-  //   }
-  // }
+  // Prints to console: multiple functions avoids match errors
+  // Last parameter is true to indicate debug printing
+  object Debug {
+    def apply(s: String) = {
+      lines(current) = PrintString(current, s, true)
+      current += 1
+    }
+    def apply(s: Any*) = {
+      lines(current) = PrintConcat(current, s.toVector, true)
+      current += 1
+    }
+    def apply(s: Symbol) = {
+      lines(current) = PrintVariable(current, s, true)
+      current += 1
+    }
+    def apply(s: Int) = {
+      lines(current) = PrintNumber(current, s, true)
+      current += 1
+    }
+    def apply(s: Function0[Any]) = {
+      lines(current) = PrintFunction(current, s, true)
+      current += 1
+    }
+  }
 
   object Sound {
     def apply(s: Symbol) = Assignment(s)
@@ -833,23 +914,14 @@ class MXTStudio{
     }
   }
 
-  //NEW STUFF FOR NOTE GENERATION
-  //Format: note, start time, duration
+  // Note/Sound Generation
+  // Format: note, start time, duration
   //  msg.setMessage(ShortMessage.NOTE_ON, channel,note,vol)
   //  msg.setMessage(ShortMessage.NOTE_OFF, channel,note)
-  // object Note{
-  //   //def apply()={
-  //     var msg = new ShortMessage()
-  //     msg.setMessage(ShortMessage.NOTE_ON,0,60,127)
-  //     var event = new MidiEvent(msg,0)
-  //     track.add(event)
-
-  //     msg = new ShortMessage()
-  //     msg.setMessage(ShortMessage.NOTE_OFF,0,60)
-  //     event = new MidiEvent(msg,0)
-  //     track.add(event)
-  //   // }
-  // }
+  // For now, only use channel 0
+  object Note{
+    def apply(note: Int, start: Int, duration: Int, volume: Int) = GenerateNote(note, start, duration, volume)
+  }
 
 
   class Bindings {
