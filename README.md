@@ -1,5 +1,5 @@
 # MixtapeStudio
-A DSL implemented in Scala for making music
+A DSL implemented in Scala for making fire mixtapes (and other music)
 
 ### CS 345, Assignment 5, Spring 2016
 * Alex Gerome
