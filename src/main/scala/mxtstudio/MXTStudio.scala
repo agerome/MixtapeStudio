@@ -13,44 +13,49 @@
 
 import scala.collection.mutable.{ HashMap, Stack }
 import scala.util.Random
-// import scala.math.{ min, max }
 
 import javax.sound.midi._
 import java.io.{ File, IOException }
 
 class MXTStudio{
   abstract sealed class MXTLine
-  //These functions handle printing to console; multiple functions to avoid match errors
-  //Debug option allows for error printing; if true, then uses error printing
+  // These functions handle printing to console; multiple functions to avoid match errors
+  // Debug option allows for error printing; if true, then uses error printing
   case class PrintString(num: Int, s: String, debug: Boolean) extends MXTLine
   case class PrintVariable(num: Int, s: Symbol, debug: Boolean) extends MXTLine
   case class PrintNumber(num: Int, s: Int, debug: Boolean) extends MXTLine
   case class PrintFunction(num: Int, s: Function0[Any], debug: Boolean) extends MXTLine
   case class PrintConcat(num: Int, s: Vector[Any], debug: Boolean) extends MXTLine
 
-  case class ReadString(num: Int, s: Symbol) extends MXTLine
+  // Deals with user input
+  case class Input(num: Int, s: Symbol) extends MXTLine
 
-  case class If(num: Int, fun: Function0[Boolean]) extends MXTLine
-  case class IfSymb(num: Int, sym: Symbol) extends MXTLine
-  case class StartFalse(num: Int) extends MXTLine
+  // Deals with conditionals
+  case class IfStart(num: Int, fun: Function0[Boolean]) extends MXTLine
+  case class IfExpr(num: Int, sym: Symbol) extends MXTLine
+  case class ElseStart(num: Int) extends MXTLine
   case class EndIf(num: Int) extends MXTLine
 
+  // Variable assignment
   case class Assign(num: Int, fn: Function0[Unit]) extends MXTLine
 
-  case class LoopBeg() extends MXTLine
+  // Loops
+  case class LoopStart() extends MXTLine
   case class Break() extends MXTLine
-  case class LoopEnd(loopBegLine: Int) extends MXTLine
+  case class LoopEnd(loopStartLine: Int) extends MXTLine
 
+  // Functions
   case class FnStart(name: Symbol) extends MXTLine
   case class FnEnd() extends MXTLine
   case class FnRet(value: Any) extends MXTLine
-  case class FnCall(funcName: Symbol) extends MXTLine
-  case class FnCallRet(funcName: Symbol, variable: Symbol) extends MXTLine
+  case class FnCall(fnName: Symbol) extends MXTLine
+  case class FnCallRet(fnName: Symbol, variable: Symbol) extends MXTLine
 
+  // Ending program
   case class End(num: Int) extends MXTLine
 
   // Sound generation case classes
-  case class Gen(num: Int) extends MXTLine
+  case class GenerateFile(num: Int) extends MXTLine
   case class GenerateNote(note: Int, start: Int, duration: Int, volume: Int) extends MXTLine
 
   // follow the model of using a pointer the the line we are working with
@@ -59,9 +64,9 @@ class MXTStudio{
   //Datastructures for recording information about lines for lookup
   var lines = new HashMap[Int, MXTLine]
   val binds = new Bindings
-  val funcBegLines = new HashMap[Symbol, Int]
+  val fnStartLines = new HashMap[Symbol, Int]
   val random = new Random
-  val loopBegLines = new Stack[Int]
+  val loopStartLines = new Stack[Int]
   val pcStack = new Stack[Int]
   val returnStack = new Stack[Any]
 
@@ -103,7 +108,7 @@ class MXTStudio{
 
   //Saving a mixtape
   def Generate() = {
-    lines(current) = Gen(current)
+    lines(current) = GenerateFile(current)
     current += 1
   }
 
@@ -113,17 +118,6 @@ class MXTStudio{
   def Record() = {
     lines = new HashMap[Int, MXTLine]
     binds.createScope()
-  }
-
-  //FIX vvv
-  def Else() = {
-    lines(current) = StartFalse(current)
-    current += 1
-  }
-
-  def endif() = {
-    lines(current) = EndIf(current)
-    current += 1
   }
 
   /**
@@ -149,22 +143,22 @@ class MXTStudio{
    */
   private def gotoLine(line: Int) {
 
-    def GeneralIf(bool: Boolean): Unit = {
+    def MasterIf(bool: Boolean): Unit = {
       if (bool) {
         gotoLine(line + 1)
       } else {
-        var curLine = line + 1
+        var currLine = line + 1
         var count = 0
-        while (!((lines(curLine).isInstanceOf[StartFalse] || lines(curLine).isInstanceOf[EndIf])
+        while (!((lines(currLine).isInstanceOf[ElseStart] || lines(currLine).isInstanceOf[EndIf])
                  && count == 0)) {
-          if(lines(curLine).isInstanceOf[If]) {
+          if(lines(currLine).isInstanceOf[IfStart]) {
             count = count + 1
-          } else if(lines(curLine).isInstanceOf[EndIf]) {
+          } else if(lines(currLine).isInstanceOf[EndIf]) {
             count = count - 1
           }
-          curLine += 1
+          currLine += 1
         }
-        gotoLine(curLine + 1)
+        gotoLine(currLine + 1)
       }
     }
 
@@ -220,29 +214,29 @@ class MXTStudio{
       }
 
       // Waits for input on stdin
-      case ReadString(_, s: Symbol) => {
+      case Input(_, s: Symbol) => {
         val value: Any = tryInt(readLine())
         binds.set(s, value)
         gotoLine(line + 1)
       }
 
       // Starting an if statement
-      case If(_, fun: Function0[Boolean]) => {
-        GeneralIf(fun())
+      case IfStart(_, fun: Function0[Boolean]) => {
+        MasterIf(fun())
       }
 
-      case IfSymb(_, sym: Symbol) => {
-        GeneralIf(binds.any(sym).asInstanceOf[Boolean])
+      case IfExpr(_, sym: Symbol) => {
+        MasterIf(binds.any(sym).asInstanceOf[Boolean])
       }
 
       // Starting an else statement, as part of an if statement
-      case StartFalse(_) => {
+      case ElseStart(_) => {
         // Only reach this if true was executed
-        var lineVar = line
-        while (!lines(lineVar).isInstanceOf[EndIf]) {
-          lineVar = lineVar + 1;
+        var ln = line
+        while (!lines(ln).isInstanceOf[EndIf]) {
+          ln = ln + 1;
         }
-        gotoLine(lineVar + 1);
+        gotoLine(ln + 1);
       }
 
       // Closing an If/Else
@@ -257,45 +251,43 @@ class MXTStudio{
       }
 
 
-      case LoopBeg() => {
+      case LoopStart() => {
         gotoLine(line + 1)
       }
 
 
       case Break() => {
-        var lineVar = line
-        var loopBegCount = 0
-        while (!lines(lineVar).isInstanceOf[LoopEnd] ||
-          loopBegCount > 0) {
-          if (lines(lineVar).isInstanceOf[LoopBeg])
-            loopBegCount += 1
-          if (lines(lineVar).isInstanceOf[LoopEnd])
-            loopBegCount -= 1
-          lineVar += 1
+        var ln = line
+        var loopStartCount = 0
+        while (!lines(ln).isInstanceOf[LoopEnd] ||
+          loopStartCount > 0) {
+          if (lines(ln).isInstanceOf[LoopStart])
+            loopStartCount += 1
+          if (lines(ln).isInstanceOf[LoopEnd])
+            loopStartCount -= 1
+          ln += 1
         }
-        gotoLine(lineVar + 1)
+        gotoLine(ln + 1)
       }
 
 
-      case LoopEnd(loopBegLine: Int) => {
-        gotoLine(loopBegLine + 1)
+      case LoopEnd(loopStartLine: Int) => {
+        gotoLine(loopStartLine + 1)
       }
 
 
       case FnStart(name: Symbol) => {
-        var lineVar = line
-        while (!lines(lineVar).isInstanceOf[FnEnd]) {
-          lineVar += 1
+        var ln = line
+        while (!lines(ln).isInstanceOf[FnEnd]) {
+          ln += 1
         }
-        gotoLine(lineVar + 1)
+        gotoLine(ln + 1)
       }
 
 
       case FnEnd() => {
-
-        // always pop from returnStack
+        // Leaving function -- destroy current scope and return to last place
         val temp: Any = returnStack.pop()
-
         binds.destroyScope()
 
         // TODO add more options
@@ -353,7 +345,6 @@ class MXTStudio{
 
 
       case FnRet(value: Any) => {
-
         // check and evaluate the types
         value match {
           case v: Function0[Any] => returnStack.push(v())
@@ -362,32 +353,32 @@ class MXTStudio{
         }
 
         // actually need to go to end of function
-        var lineVar = line
-        while (!lines(lineVar).isInstanceOf[FnEnd]) {
-          lineVar += 1
+        var ln = line
+        while (!lines(ln).isInstanceOf[FnEnd]) {
+          ln += 1
         }
-        gotoLine(lineVar)
+        gotoLine(ln)
       }
 
 
-      case FnCall(funcName: Symbol) => {
+      case FnCall(fnName: Symbol) => {
         // push trash onto the return stack
         returnStack.push(None)
         pcStack.push(line + 1)
         binds.createScope()
-        gotoLine(funcBegLines.get(funcName) match {
+        gotoLine(fnStartLines.get(fnName) match {
           case Some(s) => s + 1 //go beyond the start of the function
           case None => -1
         })
       }
 
 
-      case FnCallRet(funcName: Symbol, variable: Symbol) => {
+      case FnCallRet(fnName: Symbol, variable: Symbol) => {
         // push the return variable onto the return stack
         returnStack.push(variable)
         pcStack.push(line + 1)
         binds.createScope()
-        gotoLine(funcBegLines.get(funcName) match {
+        gotoLine(fnStartLines.get(fnName) match {
           case Some(s) => s + 1 // go beyond the start of the function
           case None => -1
         })
@@ -397,7 +388,7 @@ class MXTStudio{
       case End(_) =>
 
 
-      case Gen(_) => {
+      case GenerateFile(_) => {
         gotoLine(line + 1)
         try{
           //Save to a MIDI file
@@ -451,76 +442,9 @@ class MXTStudio{
     return numNotes
   }
 
-
-  // //  max and min functions
-  // def BIGR_OF(i: Any, j: Any): Function0[Any] = {
-  //   () =>
-  //     {
-  //       val base_i = i match {
-  //         case _i: Symbol => binds.anyval(_i)
-  //         case _i: Function0[Any] => _i()
-  //         case _ => i
-  //       }
-
-  //       val base_j = j match {
-  //         case _j: Symbol => binds.anyval(_j)
-  //         case _j: Function0[Any] => _j()
-  //         case _ => j
-  //       }
-
-  //       base_i match {
-  //         case _i: Int => {
-  //           base_j match {
-  //             case _j: Int => max(_i, _j)
-  //             case _j: Double => max(_i, _j)
-  //           }
-  //         }
-  //         case _i: Double => {
-  //           base_j match {
-  //             case _j: Int => max(_i, _j)
-  //             case _j: Double => max(_i, _j)
-  //           }
-  //         }
-  //       }
-  //     }
-  // }
-
-  // def SMALLR_OF(i: Any, j: Any): Function0[Any] = {
-  //   () =>
-  //     {
-  //       val base_i = i match {
-  //         case _i: Symbol => binds.anyval(_i)
-  //         case _i: Function0[Any] => _i()
-  //         case _ => i
-  //       }
-
-  //       val base_j = j match {
-  //         case _j: Symbol => binds.anyval(_j)
-  //         case _j: Function0[Any] => _j()
-  //         case _ => j
-  //       }
-
-  //       base_i match {
-  //         case _i: Int => {
-  //           base_j match {
-  //             case _j: Int => min(_i, _j)
-  //             case _j: Double => min(_i, _j)
-  //           }
-  //         }
-  //         case _i: Double => {
-  //           base_j match {
-  //             case _j: Int => min(_i, _j)
-  //             case _j: Double => min(_i, _j)
-  //           }
-  //         }
-  //       }
-  //     }
-  // }
-
-
   // Infix
   implicit def operator_any(i: Any) = new {
-    def UP(j: Any): Function0[Any] = {
+    def Add(j: Any): Function0[Any] = {
       () =>
         {
           val base_i = i match {
@@ -552,7 +476,7 @@ class MXTStudio{
         }
     }
 
-    def NERF(j: Any): Function0[Any] = {
+    def Sub(j: Any): Function0[Any] = {
       () =>
         {
           val base_i = i match {
@@ -584,7 +508,7 @@ class MXTStudio{
         }
     }
 
-    def TIEMZ(j: Any): Function0[Any] = {
+    def Mul(j: Any): Function0[Any] = {
       () =>
         {
           val base_i = i match {
@@ -616,7 +540,7 @@ class MXTStudio{
         }
     }
 
-    def OVAR(j: Any): Function0[Any] = {
+    def Div(j: Any): Function0[Any] = {
       () =>
         {
           val base_i = i match {
@@ -648,7 +572,7 @@ class MXTStudio{
         }
     }
 
-    def MOD(j: Any): Function0[Any] = {
+    def Mod(j: Any): Function0[Any] = {
       () =>
         {
           val base_i = i match {
@@ -680,7 +604,7 @@ class MXTStudio{
         }
     }
 
-    def BIGR_THAN(j: Any): Function0[Boolean] = {
+    def HigherThan(j: Any): Function0[Boolean] = {
       () =>
         {
           val base_i = i match {
@@ -712,7 +636,7 @@ class MXTStudio{
         }
     }
 
-    def SMALLR_THAN(j: Any): Function0[Boolean] = {
+    def LowerThan(j: Any): Function0[Boolean] = {
       () =>
         {
           val base_i = i match {
@@ -744,7 +668,7 @@ class MXTStudio{
         }
     }
 
-    def LIEK(j: Any): Function0[Boolean] = {
+    def Equals(j: Any): Function0[Boolean] = {
       () =>
         {
           val base_i = i match {
@@ -781,7 +705,7 @@ class MXTStudio{
   //User input
   object Ask {
     def apply(s: Symbol) = {
-      lines(current) = ReadString(current, s)
+      lines(current) = Input(current, s)
       current += 1
     }
   }
@@ -848,77 +772,95 @@ class MXTStudio{
     }
   }
 
+  // Sound is the keyword to replace 'var' -- for declaring variables
   object Sound {
     def apply(s: Symbol) = Assignment(s)
   }
 
-  object BTW {
+  // MXTStudio specific comments; normal scala comments work as well
+  object Mute {
     def apply(s: Any) = {}
   }
 
-  object IZ {
+  // Conditionals
+  object If {
     def apply(s: Function0[Boolean]) = {
-      lines(current) = If(current, s)
+      lines(current) = IfStart(current, s)
       current += 1
     }
     def apply(s: Symbol) = {
-      lines(current) = IfSymb(current, s)
+      lines(current) = IfExpr(current, s)
       current += 1
     }
   }
 
-  def While {
-    lines(current) = LoopBeg()
-    loopBegLines.push(current)
+  def Else() = {
+    lines(current) = ElseStart(current)
     current += 1
   }
 
-  def EndWhile {
-    lines(current) = LoopEnd(loopBegLines.pop())
+  def Close() = {
+    lines(current) = EndIf(current)
     current += 1
   }
 
-  def GTFO {
+  // Looping
+  def Loop {
+    lines(current) = LoopStart()
+    loopStartLines.push(current)
+    current += 1
+  }
+
+  def EndLoop {
+    lines(current) = LoopEnd(loopStartLines.pop())
+    current += 1
+  }
+
+  // Breaking out of loops
+  def Stop {
     lines(current) = Break()
     current += 1
   }
 
-  object HOW_DUZ_I {
-    def apply(funcName: Symbol) = {
-      funcBegLines += (funcName -> current)
-      lines(current) = FnStart(funcName)
+  // Functions
+  object Riff {
+    def apply(fnName: Symbol) = {
+      fnStartLines += (fnName -> current)
+      lines(current) = FnStart(fnName)
       current += 1
     }
   }
 
-  object FOUND_YR {
+  object Return {
     def apply(value: Any) = {
       lines(current) = FnRet(value)
       current += 1
     }
   }
 
-  def IF_U_SAY_SO {
+  def EndRiff {
     lines(current) = FnEnd()
     current += 1
   }
 
-  object PLZ {
-    def apply(funcName: Symbol) = {
-      lines(current) = FnCall(funcName)
+  // Function Calls
+  object Reprise {
+    def apply(fnName: Symbol) = {
+      lines(current) = FnCall(fnName)
       current += 1
     }
-    def apply(funcName: Symbol, variable: Symbol) = {
-      lines(current) = FnCallRet(funcName, variable)
+    def apply(fnName: Symbol, variable: Symbol) = {
+      lines(current) = FnCallRet(fnName, variable)
       current += 1
     }
   }
 
-  // Note/Sound Generation
-  // Format: note, start time, duration
-  //  msg.setMessage(ShortMessage.NOTE_ON, channel,note,vol)
-  //  msg.setMessage(ShortMessage.NOTE_OFF, channel,note)
-  // For now, only use channel 0
+  /* Note/Sound Generation
+   * Format: note, start time, duration
+   *    msg.setMessage(ShortMessage.NOTE_ON, channel,note,vol)
+   *    msg.setMessage(ShortMessage.NOTE_OFF, channel,note)
+   * For now, only use channel 0
+   */
   object Note{
     def apply(note: Int, start: Int, duration: Int, volume: Int) = GenerateNote(note, start, duration, volume)
   }
