@@ -57,6 +57,9 @@ class MXTStudio{
   // Sound generation case classes
   case class GenerateFile(num: Int) extends MXTLine
   case class GenerateNote(note: Int, start: Int, duration: Int, volume: Int) extends MXTLine
+  
+  // Set Tempo
+  case class SetTempo(newTempo: Float) extends MXTLine
 
   // follow the model of using a pointer the the line we are working with
   var current: Int = 1
@@ -90,7 +93,7 @@ class MXTStudio{
 
     try{
       //Midi requirements for playing an audio sequence
-      sequencer = MidiSystem.getSequencer() 
+      //sequencer = MidiSystem.getSequencer()
       sequencer.open()
       sequencer.setSequence(sequence)
       sequencer.start()
@@ -389,7 +392,6 @@ class MXTStudio{
 
 
       case GenerateFile(_) => {
-        gotoLine(line + 1)
         try{
           //Save to a MIDI file
           val newFile = new File("mixtape.midi")
@@ -400,20 +402,27 @@ class MXTStudio{
           case e : Exception => Console.err.println(Console.RED +
             "File Generation: An unknown error has occurred" + Console.RESET)
         }
+        gotoLine(line + 1)
       }
 
       case GenerateNote(note: Int, start: Int, duration: Int, volume: Int) => {
         var msg = new ShortMessage()
-        msg.setMessage(ShortMessage.NOTE_ON,0,60,127)
-        var event = new MidiEvent(msg,0)
+        msg.setMessage(ShortMessage.NOTE_ON,0,note,volume)
+        var event = new MidiEvent(msg,start)
         track.add(event)
 
         msg = new ShortMessage()
-        msg.setMessage(ShortMessage.NOTE_OFF,0,60)
-        event = new MidiEvent(msg,0)
+        msg.setMessage(ShortMessage.NOTE_OFF,0,note)
+        val end : Int = start + duration
+        event = new MidiEvent(msg,end)
         track.add(event)
+        gotoLine(line + 1)
       }
 
+      case SetTempo(newTempo: Float) => {
+        sequencer.setTempoInBPM(newTempo)
+        gotoLine(line + 1)
+      }
       // Catch all
       case _ => 
     }
@@ -426,7 +435,7 @@ class MXTStudio{
   //Random function: gives a random note within the specified range (midi standard)
   //Mashkeys starts generating random notes at time i for duration j (returns number of generated notes)
   def Random(i: Int, j: Int): Int = { random.nextInt(j + 1 - i) + i }
-  def MashKeys(i: Int, j: Int): Int = { 
+  def MashKeys(i: Int, j: Int): Int = {
     // Get number of notes to generate
     var numNotes = random.nextInt(30) + 1
     var x = 0
@@ -436,7 +445,7 @@ class MXTStudio{
       var start = random.nextInt(j + 1) + i
       var duration = random.nextInt(j) + 1
       var volume = random.nextInt(128)
-      GenerateNote(note, start, duration, volume)
+      Note(note, start, duration, volume)
     }
     // Could not think of a way to do this with out return
     return numNotes
@@ -862,9 +871,18 @@ class MXTStudio{
    * For now, only use channel 0
    */
   object Note{
-    def apply(note: Int, start: Int, duration: Int, volume: Int) = GenerateNote(note, start, duration, volume)
+    def apply(note: Int, start: Int, duration: Int, volume: Int) =  {
+      lines(current) = GenerateNote(note, start, duration, volume)
+      current += 1
+    }
   }
 
+  object ChangeTempo{
+    def apply(newTempo: Float) = {
+      lines(current) = SetTempo(newTempo)
+      current += 1
+    }
+  }
 
   class Bindings {
     val bindingsStack = Stack[HashMap[Symbol, Any]]()
