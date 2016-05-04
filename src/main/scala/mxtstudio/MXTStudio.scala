@@ -13,7 +13,10 @@
 
 import scala.collection.mutable.{ HashMap, Stack }
 import scala.util.Random
-import scala.math.{ min, max }
+// import scala.math.{ min, max }
+
+import javax.sound.midi._
+import java.io.File
 
 class MXTStudio{
   abstract sealed class MXTLine
@@ -25,11 +28,11 @@ class MXTStudio{
 
   case class ReadString(num: Int, s: Symbol) extends MXTLine
 
-  case class ErrorPrintString(num: Int, s: String) extends MXTLine
-  case class ErrorPrintVariable(num: Int, s: Symbol) extends MXTLine
-  case class ErrorPrintNumber(num: Int, s: Int) extends MXTLine
-  case class ErrorPrintFunction(num: Int, s: Function0[Any]) extends MXTLine
-  case class ErrorPrintMany(num: Int, s: Vector[Any]) extends MXTLine
+  // case class ErrorPrintString(num: Int, s: String) extends MXTLine
+  // case class ErrorPrintVariable(num: Int, s: Symbol) extends MXTLine
+  // case class ErrorPrintNumber(num: Int, s: Int) extends MXTLine
+  // case class ErrorPrintFunction(num: Int, s: Function0[Any]) extends MXTLine
+  // case class ErrorPrintMany(num: Int, s: Vector[Any]) extends MXTLine
 
   case class If(num: Int, fun: Function0[Boolean]) extends MXTLine
   case class IfSymb(num: Int, sym: Symbol) extends MXTLine
@@ -61,17 +64,45 @@ class MXTStudio{
   val pcStack = new Stack[Int]
   val returnStack = new Stack[Any]
 
-  def Generate() = {
+  //Midi requirements
+  var sequence = new Sequence(Sequence.PPQ, 1)
+  var track = sequence.createTrack()
+  var sequencer = MidiSystem.getSequencer()
+
+  def Play() = {
     lines(current) = End(current)
     gotoLine(lines.keys.toList.sorted.head)
+
+    //Midi requirements
+    sequencer = MidiSystem.getSequencer()
+    sequencer.open()
+    sequencer.setSequence(sequence)
+    sequencer.start()
+    while(sequencer.isRunning()){
+      Thread.sleep(1000)
+    }
+    sequencer.close()
+
+    //Saving
+    //val newFile = new File("f.midi")
+    //MidiSystem.write(sequence,0,newFile)
   }
+
+  //TODO: make a generate command
+  //commands for tracks/sequences/files?
 
   def Record() = {
     lines = new HashMap[Int, MXTLine]
     binds.createScope()
+
+    //Initialize midi requirements
+    // sequence = new Sequence(Sequence.PPQ, 1)
+    track = sequence.createTrack()
+    sequencer = MidiSystem.getSequencer()
   }
 
-  def else() = {
+  //FIX vvv
+  def Fred() = {
     lines(current) = StartFalse(current)
     current += 1
   }
@@ -85,35 +116,22 @@ class MXTStudio{
    * assign those things
    */
   case class Assignment(sym: Symbol) {
-    def ITZ(v: String): Unit = {
+    def as(v: String): Unit = {
       lines(current) = Assign(current, (() => binds.set(sym, v)))
       current += 1
     }
-    def ITZ(v: AnyVal): Unit = {
+    def as(v: AnyVal): Unit = {
       lines(current) = Assign(current, (() => binds.set(sym, v)))
       current += 1
     }
-    def ITZ(v: Function0[Any]): Unit = {
-      lines(current) = Assign(current, (() => binds.set(sym, v())))
-      current += 1
-    }
-
-    def R(v: String): Unit = {
-      lines(current) = Assign(current, (() => binds.set(sym, v)))
-      current += 1
-    }
-    def R(v: AnyVal): Unit = {
-      lines(current) = Assign(current, (() => binds.set(sym, v)))
-      current += 1
-    }
-    def R(v: Function0[Any]): Unit = {
+    def as(v: Function0[Any]): Unit = {
       lines(current) = Assign(current, (() => binds.set(sym, v())))
       current += 1
     }
   }
 
   /**
-   * runtime evaluator of LOLCODE
+   * runtime evaluator
    */
   private def gotoLine(line: Int) {
 
@@ -165,33 +183,33 @@ class MXTStudio{
         gotoLine(line + 1)
       }
 
-      // print to stderr
-      case ErrorPrintString(_, s: String) => {
-        Console.err.println(Console.RED + s + Console.RESET)
-        gotoLine(line + 1)
-      }
-      case ErrorPrintVariable(_, s: Symbol) => {
-        Console.err.println(Console.RED + binds.any(s) + Console.RESET)
-        gotoLine(line + 1)
-      }
-      case ErrorPrintNumber(_, s: Int) => {
-        Console.err.println(Console.RED + s + Console.RESET)
-        gotoLine(line + 1)
-      }
-      case ErrorPrintFunction(_, s: Function0[Any]) => {
-        Console.err.println(Console.RED + s() + Console.RESET)
-        gotoLine(line + 1)
-      }
-      case ErrorPrintMany(_, s: Vector[Any]) => {
+      // // print to stderr
+      // case ErrorPrintString(_, s: String) => {
+      //   Console.err.println(Console.RED + s + Console.RESET)
+      //   gotoLine(line + 1)
+      // }
+      // case ErrorPrintVariable(_, s: Symbol) => {
+      //   Console.err.println(Console.RED + binds.any(s) + Console.RESET)
+      //   gotoLine(line + 1)
+      // }
+      // case ErrorPrintNumber(_, s: Int) => {
+      //   Console.err.println(Console.RED + s + Console.RESET)
+      //   gotoLine(line + 1)
+      // }
+      // case ErrorPrintFunction(_, s: Function0[Any]) => {
+      //   Console.err.println(Console.RED + s() + Console.RESET)
+      //   gotoLine(line + 1)
+      // }
+      // case ErrorPrintMany(_, s: Vector[Any]) => {
 
-        Console.err.println(Console.RED + s.map(e => e match {
-          case v: Symbol => binds.any(v)
-          case v: Function0[Any] => v()
-          case _ => e
-        }).mkString(" ") + Console.RESET)
+      //   Console.err.println(Console.RED + s.map(e => e match {
+      //     case v: Symbol => binds.any(v)
+      //     case v: Function0[Any] => v()
+      //     case _ => e
+      //   }).mkString(" ") + Console.RESET)
 
-        gotoLine(line + 1)
-      }
+      //   gotoLine(line + 1)
+      // }
 
       case ReadString(_, s: Symbol) => {
         val value: Any = tryInt(readLine())
@@ -355,72 +373,72 @@ class MXTStudio{
    *  OPERATORS
    */
   // prefix operators / functions
-  def RAND(i: Int, j: Int): Int = { random.nextInt(j + 1 - i) + i }
+  def mashkeys(i: Int, j: Int): Int = { random.nextInt(j + 1 - i) + i }
 
-  //  max and min functions
-  def BIGR_OF(i: Any, j: Any): Function0[Any] = {
-    () =>
-      {
-        val base_i = i match {
-          case _i: Symbol => binds.anyval(_i)
-          case _i: Function0[Any] => _i()
-          case _ => i
-        }
+  // //  max and min functions
+  // def BIGR_OF(i: Any, j: Any): Function0[Any] = {
+  //   () =>
+  //     {
+  //       val base_i = i match {
+  //         case _i: Symbol => binds.anyval(_i)
+  //         case _i: Function0[Any] => _i()
+  //         case _ => i
+  //       }
 
-        val base_j = j match {
-          case _j: Symbol => binds.anyval(_j)
-          case _j: Function0[Any] => _j()
-          case _ => j
-        }
+  //       val base_j = j match {
+  //         case _j: Symbol => binds.anyval(_j)
+  //         case _j: Function0[Any] => _j()
+  //         case _ => j
+  //       }
 
-        base_i match {
-          case _i: Int => {
-            base_j match {
-              case _j: Int => max(_i, _j)
-              case _j: Double => max(_i, _j)
-            }
-          }
-          case _i: Double => {
-            base_j match {
-              case _j: Int => max(_i, _j)
-              case _j: Double => max(_i, _j)
-            }
-          }
-        }
-      }
-  }
+  //       base_i match {
+  //         case _i: Int => {
+  //           base_j match {
+  //             case _j: Int => max(_i, _j)
+  //             case _j: Double => max(_i, _j)
+  //           }
+  //         }
+  //         case _i: Double => {
+  //           base_j match {
+  //             case _j: Int => max(_i, _j)
+  //             case _j: Double => max(_i, _j)
+  //           }
+  //         }
+  //       }
+  //     }
+  // }
 
-  def SMALLR_OF(i: Any, j: Any): Function0[Any] = {
-    () =>
-      {
-        val base_i = i match {
-          case _i: Symbol => binds.anyval(_i)
-          case _i: Function0[Any] => _i()
-          case _ => i
-        }
+  // def SMALLR_OF(i: Any, j: Any): Function0[Any] = {
+  //   () =>
+  //     {
+  //       val base_i = i match {
+  //         case _i: Symbol => binds.anyval(_i)
+  //         case _i: Function0[Any] => _i()
+  //         case _ => i
+  //       }
 
-        val base_j = j match {
-          case _j: Symbol => binds.anyval(_j)
-          case _j: Function0[Any] => _j()
-          case _ => j
-        }
+  //       val base_j = j match {
+  //         case _j: Symbol => binds.anyval(_j)
+  //         case _j: Function0[Any] => _j()
+  //         case _ => j
+  //       }
 
-        base_i match {
-          case _i: Int => {
-            base_j match {
-              case _j: Int => min(_i, _j)
-              case _j: Double => min(_i, _j)
-            }
-          }
-          case _i: Double => {
-            base_j match {
-              case _j: Int => min(_i, _j)
-              case _j: Double => min(_i, _j)
-            }
-          }
-        }
-      }
-  }
+  //       base_i match {
+  //         case _i: Int => {
+  //           base_j match {
+  //             case _j: Int => min(_i, _j)
+  //             case _j: Double => min(_i, _j)
+  //           }
+  //         }
+  //         case _i: Double => {
+  //           base_j match {
+  //             case _j: Int => min(_i, _j)
+  //             case _j: Double => min(_i, _j)
+  //           }
+  //         }
+  //       }
+  //     }
+  // }
 
 
   // infix operators
@@ -683,7 +701,8 @@ class MXTStudio{
 
   }
 
-  object GIMMEH {
+  //User input
+  object Ask {
     def apply(s: Symbol) = {
       lines(current) = ReadString(current, s)
       current += 1
@@ -702,7 +721,7 @@ class MXTStudio{
     }
   }
 
-  object VISIBLE {
+  object Display {
     def apply(s: String) = {
       lines(current) = PrintString(current, s)
       current += 1
@@ -725,34 +744,30 @@ class MXTStudio{
     }
   }
 
-  object COMPLAIN {
-    def apply(s: String) = {
-      lines(current) = ErrorPrintString(current, s)
-      current += 1
-    }
-    def apply(s: Any*) = {
-      lines(current) = ErrorPrintMany(current, s.toVector)
-      current += 1
-    }
-    def apply(s: Symbol) = {
-      lines(current) = ErrorPrintVariable(current, s)
-      current += 1
-    }
-    def apply(s: Int) = {
-      lines(current) = ErrorPrintNumber(current, s)
-      current += 1
-    }
-    def apply(s: Function0[Any]) = {
-      lines(current) = ErrorPrintFunction(current, s)
-      current += 1
-    }
-  }
+  // object COMPLAIN {
+  //   def apply(s: String) = {
+  //     lines(current) = ErrorPrintString(current, s)
+  //     current += 1
+  //   }
+  //   def apply(s: Any*) = {
+  //     lines(current) = ErrorPrintMany(current, s.toVector)
+  //     current += 1
+  //   }
+  //   def apply(s: Symbol) = {
+  //     lines(current) = ErrorPrintVariable(current, s)
+  //     current += 1
+  //   }
+  //   def apply(s: Int) = {
+  //     lines(current) = ErrorPrintNumber(current, s)
+  //     current += 1
+  //   }
+  //   def apply(s: Function0[Any]) = {
+  //     lines(current) = ErrorPrintFunction(current, s)
+  //     current += 1
+  //   }
+  // }
 
-  object I_HAZ_A {
-    def apply(s: Symbol) = Assignment(s)
-  }
-
-  object LOL {
+  object Sound {
     def apply(s: Symbol) = Assignment(s)
   }
 
@@ -771,13 +786,13 @@ class MXTStudio{
     }
   }
 
-  def IM_IN_YR_LOOP {
+  def While {
     lines(current) = LoopBeg()
     loopBegLines.push(current)
     current += 1
   }
 
-  def IM_OUTTA_YR_LOOP {
+  def EndWhile {
     lines(current) = LoopEnd(loopBegLines.pop())
     current += 1
   }
@@ -817,6 +832,25 @@ class MXTStudio{
       current += 1
     }
   }
+
+  //NEW STUFF FOR NOTE GENERATION
+  //Format: note, start time, duration
+  //  msg.setMessage(ShortMessage.NOTE_ON, channel,note,vol)
+  //  msg.setMessage(ShortMessage.NOTE_OFF, channel,note)
+  // object Note{
+  //   //def apply()={
+  //     var msg = new ShortMessage()
+  //     msg.setMessage(ShortMessage.NOTE_ON,0,60,127)
+  //     var event = new MidiEvent(msg,0)
+  //     track.add(event)
+
+  //     msg = new ShortMessage()
+  //     msg.setMessage(ShortMessage.NOTE_OFF,0,60)
+  //     event = new MidiEvent(msg,0)
+  //     track.add(event)
+  //   // }
+  // }
+
 
   class Bindings {
     val bindingsStack = Stack[HashMap[Symbol, Any]]()
