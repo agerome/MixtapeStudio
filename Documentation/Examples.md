@@ -1,7 +1,7 @@
 ### General Commands:
 
 Record  
-&ltCode&gt  
+&lt;Code&gt;  
 {Generate}  
 Play  
 
@@ -12,24 +12,24 @@ Mute("Comments")
 
 ### Var:
 
-Sound('&ltvar&gt') as (&ltexpr&gt)  
-Sound('&ltvar&gt') as &lt&ltvalue&gt&gt  
-Sound('&ltvar&gt') as '&ltvar&gt  
+Sound('&lt;var&gt;') as (&lt;expr&gt;)  
+Sound('&lt;var&gt;') as &lt;&lt;value&gt;&gt;  
+Sound('&lt;var&gt;') as '&lt;var&gt;  
 
 
 ### Conditionals:
 
 If()  
-	&ltCode&gt  
+	&lt;Code&gt;  
 Else  
-	&ltCode&gt  
+	&lt;Code&gt;  
 Close  
 
 
 ### Loops:
 
 Loop  
-	&ltCode&gt  
+	&lt;Code&gt;  
 	If()  
 		Stop  
 	Else  
@@ -39,18 +39,18 @@ EndLoop
 
 ### I/O:
 
-Display(&ltvalue&gt, ...)  
-Ask('&ltvar&gt)  
+Display(&lt;value&gt;, ...)  
+Ask('&lt;var&gt;)  
 
 
 ### Note:
 
-Note(&ltpitch&gt,&ltstart&gt,&ltduration&gt,&ltvolume&gt)  
+Note(&lt;pitch&gt;,&lt;start&gt;,&lt;duration&gt;,&lt;volume&gt;)  
 
 
 ### Rhythm: (optional)
 
-ChangeTempo(&ltInt&gt)  
+ChangeTempo(&lt;Int&gt;)  
 
 
 
