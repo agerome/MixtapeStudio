@@ -1,56 +1,56 @@
-General Commands:
-----
-Record
-<Code>
-{Generate}
-Play
+### General Commands:
 
-Comments:
-----
-Mute("Comments")
+Record  
+&ltCode&gt  
+{Generate}  
+Play  
 
+### Comments:
 
-Var:
-----
-Sound('<var>') as (<expr>)
-Sound('<var>') as <value>
-Sound('<var>') as '<var>
+Mute("Comments")  
 
 
-Conditionals:
-----
-If()
-	<Code>
-Else
-	<Code>
-Close
+### Var:
+
+Sound('&ltvar&gt') as (&ltexpr&gt)  
+Sound('&ltvar&gt') as &lt&ltvalue&gt&gt  
+Sound('&ltvar&gt') as '&ltvar&gt  
 
 
-Loops:
-----
-Loop
-	<Code>
-	If()
-		Stop
-	Else
-	Close
-EndLoop
+### Conditionals:
+
+If()  
+	&ltCode&gt  
+Else  
+	&ltCode&gt  
+Close  
 
 
-I/O:
-----
-Display(<value>, ...)
-Ask('<var>)
+### Loops:
+
+Loop  
+	&ltCode&gt  
+	If()  
+		Stop  
+	Else  
+	Close  
+EndLoop  
 
 
+### I/O:
 
-Note:
----
-Note(<pitch>,<start>,<duration>,<volume>)
+Display(&ltvalue&gt, ...)  
+Ask('&ltvar&gt)  
 
-Rhythm: (optional)
-----
-ChangeTempo(<Int>)
+
+### Note:
+
+Note(&ltpitch&gt,&ltstart&gt,&ltduration&gt,&ltvolume&gt)  
+
+
+### Rhythm: (optional)
+
+ChangeTempo(&ltInt&gt)  
 
 
 
